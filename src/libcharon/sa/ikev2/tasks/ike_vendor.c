@@ -25,95 +25,121 @@ typedef struct private_ike_vendor_t private_ike_vendor_t;
  */
 struct private_ike_vendor_t {
 
-	/**
-	 * Public ike_vendor_t interface.
-	 */
-	ike_vendor_t public;
+  /**
+   * Public ike_vendor_t interface.
+   */
+  ike_vendor_t public;
 
-	/**
-	 * Associated IKE_SA
-	 */
-	ike_sa_t *ike_sa;
+  /**
+   * Associated IKE_SA
+   */
+  ike_sa_t *ike_sa;
 
-	/**
-	 * Are we the inititator of this task
-	 */
-	bool initiator;
+  /**
+   * Are we the inititator of this task
+   */
+  bool initiator;
 };
 
 /**
  * strongSwan specific vendor ID without version, MD5("strongSwan")
  */
 static chunk_t strongswan_vid = chunk_from_chars(
-	0x88,0x2f,0xe5,0x6d,0x6f,0xd2,0x0d,0xbc,
-	0x22,0x51,0x61,0x3b,0x2e,0xbe,0x5b,0xeb
+  0x88,0x2f,0xe5,0x6d,0x6f,0xd2,0x0d,0xbc,
+  0x22,0x51,0x61,0x3b,0x2e,0xbe,0x5b,0xeb
+);
+
+/**
+ * CISCO specific vendor ID strings
+ */
+/*CISCO-DELETE-REASON*/
+static chunk_t cisco_delete_vid = chunk_from_chars(
+  0x43,0x49,0x53,0x43,0x4f,0x2d,
+  0x44,0x45,0x4c,0x45,0x54,0x45,0x2d,
+  0x52,0x45,0x41,0x53,0x4f,0x4e
+);
+/*CISCO(COPYRIGHT)&Copyright (c) 2009 Cisco Systems, Inc.*/
+static chunk_t cisco_2k9_vid = chunk_from_chars(
+  0x43,0x49,0x53,0x43,0x4f,
+  0x28,0x43,0x4f,0x50,0x59,0x52,0x49,0x47,0x48,0x54,0x29,0x26,
+  0x43,0x6f,0x70,0x79,0x72,0x69,0x67,0x68,0x74,0x20,
+  0x28,0x63,0x29,0x20,0x32,0x30,0x30,0x39,0x20,
+  0x43,0x69,0x73,0x63,0x6f,0x20,0x53,0x79,0x73,0x74,0x65,0x6d,0x73,0x2c,0x20,0x49,0x6e,0x63,0x2e
 );
 
 METHOD(task_t, build, status_t,
-	private_ike_vendor_t *this, message_t *message)
+  private_ike_vendor_t *this, message_t *message)
 {
-	if (lib->settings->get_bool(lib->settings,
-								"%s.send_vendor_id", FALSE, charon->name))
-	{
-		vendor_id_payload_t *vid;
+  if (lib->settings->get_bool(lib->settings,
+                "%s.send_vendor_id", FALSE, charon->name))
+  {
+    vendor_id_payload_t *vid;
 
-		vid = vendor_id_payload_create_data(VENDOR_ID,
-											chunk_clone(strongswan_vid));
-		message->add_payload(message, &vid->payload_interface);
-	}
+    vid = vendor_id_payload_create_data(VENDOR_ID,
+                      chunk_clone(strongswan_vid));
+    message->add_payload(message, &vid->payload_interface);
+  }
 
-	return this->initiator ? NEED_MORE : SUCCESS;
+  return this->initiator ? NEED_MORE : SUCCESS;
 }
 
 METHOD(task_t, process, status_t,
-	private_ike_vendor_t *this, message_t *message)
+  private_ike_vendor_t *this, message_t *message)
 {
-	enumerator_t *enumerator;
-	payload_t *payload;
+  enumerator_t *enumerator;
+  payload_t *payload;
 
-	enumerator = message->create_payload_enumerator(message);
-	while (enumerator->enumerate(enumerator, &payload))
-	{
-		if (payload->get_type(payload) == VENDOR_ID)
-		{
-			vendor_id_payload_t *vid;
-			chunk_t data;
+  enumerator = message->create_payload_enumerator(message);
+  while (enumerator->enumerate(enumerator, &payload))
+  {
+    if (payload->get_type(payload) == VENDOR_ID)
+    {
+      vendor_id_payload_t *vid;
+      chunk_t data;
 
-			vid = (vendor_id_payload_t*)payload;
-			data = vid->get_data(vid);
+      vid = (vendor_id_payload_t*)payload;
+      data = vid->get_data(vid);
 
-			if (chunk_equals(data, strongswan_vid))
-			{
-				DBG1(DBG_IKE, "received strongSwan vendor ID");
-				this->ike_sa->enable_extension(this->ike_sa, EXT_STRONGSWAN);
-			}
-			else
-			{
-				DBG1(DBG_ENC, "received unknown vendor ID: %#B", &data);
-			}
-		}
-	}
-	enumerator->destroy(enumerator);
+      if (chunk_equals(data, strongswan_vid))
+      {
+        DBG1(DBG_IKE, "received strongSwan vendor ID");
+        this->ike_sa->enable_extension(this->ike_sa, EXT_STRONGSWAN);
+      }
+      else if(chunk_equals(data, cisco_delete_vid))
+      {
+        DBG1(DBG_IKE, "received CISCO-DELETE-REASON vendor ID");
+      }
+      else if(chunk_equals(data, cisco_2k9_vid))
+      {
+        DBG1(DBG_IKE, "received 2009 Cisco Systems, Inc. vendor ID");
+      }
+      else
+      {
+        DBG1(DBG_ENC, "received unknown vendor ID: %#B", &data);
+      }
+    }
+  }
+  enumerator->destroy(enumerator);
 
-	return this->initiator ? SUCCESS : NEED_MORE;
+  return this->initiator ? SUCCESS : NEED_MORE;
 }
 
 METHOD(task_t, migrate, void,
-	private_ike_vendor_t *this, ike_sa_t *ike_sa)
+  private_ike_vendor_t *this, ike_sa_t *ike_sa)
 {
-	this->ike_sa = ike_sa;
+  this->ike_sa = ike_sa;
 }
 
 METHOD(task_t, get_type, task_type_t,
-	private_ike_vendor_t *this)
+  private_ike_vendor_t *this)
 {
-	return TASK_IKE_VENDOR;
+  return TASK_IKE_VENDOR;
 }
 
 METHOD(task_t, destroy, void,
-	private_ike_vendor_t *this)
+  private_ike_vendor_t *this)
 {
-	free(this);
+  free(this);
 }
 
 /**
@@ -121,21 +147,21 @@ METHOD(task_t, destroy, void,
  */
 ike_vendor_t *ike_vendor_create(ike_sa_t *ike_sa, bool initiator)
 {
-	private_ike_vendor_t *this;
+  private_ike_vendor_t *this;
 
-	INIT(this,
-		.public = {
-			.task = {
-				.build = _build,
-				.process = _process,
-				.migrate = _migrate,
-				.get_type = _get_type,
-				.destroy = _destroy,
-			},
-		},
-		.initiator = initiator,
-		.ike_sa = ike_sa,
-	);
+  INIT(this,
+    .public = {
+      .task = {
+        .build = _build,
+        .process = _process,
+        .migrate = _migrate,
+        .get_type = _get_type,
+        .destroy = _destroy,
+      },
+    },
+    .initiator = initiator,
+    .ike_sa = ike_sa,
+  );
 
-	return &this->public;
+  return &this->public;
 }
