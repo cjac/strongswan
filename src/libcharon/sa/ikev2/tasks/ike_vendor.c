@@ -122,6 +122,10 @@ METHOD(task_t, process, status_t,
       {
         DBG1(DBG_IKE, "received 2009 Cisco Systems, Inc. vendor ID");
       }
+      else if(chunk_equals(data, fragmentation_vid))
+      {
+        DBG1(DBG_IKE, "received FRAGMENTATION vendor ID");
+      }
       else
       {
         DBG1(DBG_ENC, "received unknown vendor ID: %#B", &data);
